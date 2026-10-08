@@ -1,5 +1,6 @@
 const API = 'https://api.github.com';
 const LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const STARTED = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
 // Notification versions already examined in this run, so an unread mention is
 // not re-fetched on every poll.
@@ -41,8 +42,13 @@ const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s || '');
  * are handled; the reply always goes as a normal comment on that thread.
  */
 export async function fetchMentions(login) {
-  const { data: notes, headers } = await gh('/notifications?participating=true&per_page=50');
+  const { data: unread, headers } = await gh('/notifications?participating=true&per_page=50');
   const pollSeconds = Number(headers.get('x-poll-interval')) || 60;
+  // Opening a thread on GitHub marks it read, which drops it from the unread
+  // list before the next poll. So also take read ones updated since an hour
+  // before startup.
+  const { data: recent } = await gh(`/notifications?participating=true&all=true&per_page=50&since=${STARTED}`);
+  const notes = [...new Map([...unread, ...recent].map((n) => [n.id, n])).values()];
   const items = [];
 
   for (const n of notes) {
