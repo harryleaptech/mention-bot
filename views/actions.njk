@@ -1,0 +1,32 @@
+{#- The buttons for one task, as small POST forms. `card` is the task; `back` is "task" on the
+    task page so the redirect comes back there. -#}
+{% from "govuk/components/button/macro.njk" import govukButton %}
+
+{% macro taskActions(card, key, back) %}
+  {% if not card.busy %}
+    <div class="board-card__actions">
+      {% if card.column == "todo" or card.status == "failed" %}
+        <form method="post" action="/tasks/{{ card.id }}/start" novalidate>
+          <input type="hidden" name="key" value="{{ key }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          {{ govukButton({ text: "Run again" if card.status == "failed" else "Start task", classes: "board-btn", preventDoubleClick: true }) }}
+        </form>
+      {% endif %}
+      {% if card.column != "todo" %}
+        <form method="post" action="/tasks/{{ card.id }}/todo" novalidate>
+          <input type="hidden" name="key" value="{{ key }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          {{ govukButton({ text: "Back to To do", classes: "govuk-button--secondary board-btn", preventDoubleClick: true }) }}
+        </form>
+      {% endif %}
+      {% if card.column == "todo" %}
+        <form method="post" action="/tasks/{{ card.id }}/done" novalidate>
+          <input type="hidden" name="key" value="{{ key }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          {{ govukButton({ text: "Mark as done", classes: "govuk-button--secondary board-btn", preventDoubleClick: true }) }}
+        </form>
+      {% endif %}
+      <a class="govuk-link" href="/tasks/{{ card.id }}/delete">Delete<span class="govuk-visually-hidden"> task: {{ card.title }}</span></a>
+    </div>
+  {% endif %}
+{% endmacro %}

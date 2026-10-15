@@ -1,6 +1,10 @@
+import { registerSender } from './mentions.js';
+
 const API = 'https://api.github.com';
 const LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
-const STARTED = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+// On start, look back this far so a restart never loses a mention (handled ones are in state.json).
+const CATCHUP_MS = (Number(process.env.CATCHUP_HOURS) || 24) * 60 * 60 * 1000;
+const STARTED = new Date(Date.now() - CATCHUP_MS).toISOString();
 
 // Notification versions already examined in this run, so an unread mention is
 // not re-fetched on every poll.
@@ -38,15 +42,16 @@ const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s || '');
 
 /**
  * Returns the unread GitHub mentions as approval items, plus how long GitHub
- * asks us to wait before the next poll. Only issue and pull request threads
- * are handled; the reply always goes as a normal comment on that thread.
+ * asks us to wait before the next poll. Issue and pull request threads: comments,
+ * the opening post, and pull request review texts. The reply always goes as a
+ * normal comment on that thread.
  */
 export async function fetchMentions(login) {
   const { data: unread, headers } = await gh('/notifications?participating=true&per_page=50');
   const pollSeconds = Number(headers.get('x-poll-interval')) || 60;
   // Opening a thread on GitHub marks it read, which drops it from the unread
-  // list before the next poll. So also take read ones updated since an hour
-  // before startup.
+  // list before the next poll. So also take read ones updated since the
+  // catch-up window before startup.
   const { data: recent } = await gh(`/notifications?participating=true&all=true&per_page=50&since=${STARTED}`);
   const notes = [...new Map([...unread, ...recent].map((n) => [n.id, n])).values()];
   const items = [];
@@ -64,34 +69,47 @@ export async function fetchMentions(login) {
     const { data: comments } = await gh(`${issueUrl}/comments?per_page=100&since=${since}`);
 
     const me = login.toLowerCase();
-    const index = comments.findLastIndex(
-      (c) => c.user?.login?.toLowerCase() !== me && mentions(c.body, login),
-    );
+    // A review's text mentions me too (round-by-round PR reviews); it is not a comment.
+    let reviews = [];
+    if (n.subject.type === 'PullRequest') {
+      ({ data: reviews } = await gh(`${n.subject.url}/reviews?per_page=100`));
+    }
+    const thread = [
+      ...comments.map((c) => ({ kind: 'comment', id: c.id, user: c.user, body: c.body, url: c.html_url, at: c.created_at })),
+      ...reviews.filter((r) => r.body && r.submitted_at >= since)
+        .map((r) => ({ kind: 'review', id: r.id, user: r.user, body: r.body, url: r.html_url, at: r.submitted_at })),
+    ].sort((a, b) => a.at.localeCompare(b.at));
+    const mine = (x) => x.user?.login?.toLowerCase() === me;
+    const mentioning = thread.filter((x) => !mine(x) && mentions(x.body, login));
+
     const repo = n.repository.full_name;
     const where = `${repo}#${issue.number} — ${issue.title}`;
     const base = {
       source: 'GitHub',
       where,
       maxLen: 4000,
-      send: async (text) => {
-        const { data } = await gh(`${issueUrl}/comments`, { method: 'POST', body: { body: text } });
-        return data.html_url;
-      },
+      target: { kind: 'github', commentsUrl: `${issueUrl}/comments` },
     };
 
-    if (index >= 0) {
-      const c = comments[index];
-      const earlier = comments.slice(Math.max(0, index - 5), index)
-        .map((x) => `${x.user?.login}: ${clip(x.body, 600)}`);
+    // Every mention in the catch-up window (already-handled ones are skipped by the caller),
+    // or at least the newest one.
+    const offer = mentioning.filter((x) => x.at >= STARTED);
+    if (!offer.length && mentioning.length) offer.push(mentioning[mentioning.length - 1]);
+
+    for (const x of offer) {
+      const index = thread.indexOf(x);
+      const earlier = thread.slice(Math.max(0, index - 5), index)
+        .map((y) => `${y.user?.login}: ${clip(y.body, 600)}`);
       items.push({
         ...base,
-        key: `gh:comment:${c.id}`,
-        author: `@${c.user.login}`,
-        message: c.body,
-        link: c.html_url,
+        key: `gh:${x.kind}:${x.id}`,
+        author: `@${x.user.login}${x.kind === 'review' ? ' (PR review)' : ''}`,
+        message: x.body,
+        link: x.url,
         context: [`${issue.user?.login} (opening post): ${clip(issue.body, 1500)}`, ...earlier].join('\n\n'),
       });
-    } else if (issue.user?.login?.toLowerCase() !== me && mentions(issue.body, login)) {
+    }
+    if (!mentioning.length && !mine(issue) && mentions(issue.body, login)) {
       items.push({
         ...base,
         key: `gh:issue:${issue.id}`,
@@ -105,3 +123,9 @@ export async function fetchMentions(login) {
 
   return { items, pollSeconds };
 }
+
+// A reply goes as a normal comment on the issue or pull request thread.
+registerSender('github', async (target, text) => {
+  const { data } = await gh(target.commentsUrl, { method: 'POST', body: { body: text } });
+  return data.html_url;
+});

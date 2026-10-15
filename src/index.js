@@ -9,8 +9,13 @@ for (const name of ['DISCORD_TOKEN', 'DISCORD_OWNER_ID']) {
 }
 
 // Imported after the env check because these modules read process.env on load.
-const { client, requestApproval } = await import('./discord.js');
+const { client, requestApproval, notifyTask, catchUpDiscord } = await import('./discord.js');
 const { fetchMentions, getLogin } = await import('./github.js');
+const { onTaskFinished } = await import('./board.js');
+const { startBoard } = await import('./board-server.js');
+
+onTaskFinished(notifyTask);
+startBoard();
 
 async function watchGitHub() {
   if (!process.env.GITHUB_TOKEN) {
@@ -38,6 +43,7 @@ async function watchGitHub() {
 client.once(Events.ClientReady, (c) => {
   console.log(`[discord] logged in as ${c.user.tag}, in ${c.guilds.cache.size} server(s)`);
   watchGitHub().catch((e) => console.error(`[github] ${e.message}`));
+  catchUpDiscord().catch((e) => console.error(`[discord] catch-up: ${e.message}`));
 });
 
 await client.login(process.env.DISCORD_TOKEN);

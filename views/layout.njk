@@ -1,0 +1,50 @@
+{#- GOV.UK Frontend page template without GOV.UK branding: no crown header, no GOV.UK footer,
+    own favicon; board.css swaps GDS Transport for the system font. -#}
+{% extends "govuk/template.njk" %}
+{% from "govuk/components/service-navigation/macro.njk" import govukServiceNavigation %}
+{% from "govuk/components/back-link/macro.njk" import govukBackLink %}
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{% from "govuk/components/error-summary/macro.njk" import govukErrorSummary %}
+{% from "govuk/components/input/macro.njk" import govukInput %}
+{% from "govuk/components/textarea/macro.njk" import govukTextarea %}
+{% from "govuk/components/radios/macro.njk" import govukRadios %}
+{% from "govuk/components/summary-list/macro.njk" import govukSummaryList %}
+{% from "govuk/components/notification-banner/macro.njk" import govukNotificationBanner %}
+{% from "govuk/components/tag/macro.njk" import govukTag %}
+{% from "govuk/components/warning-text/macro.njk" import govukWarningText %}
+{% from "govuk/components/inset-text/macro.njk" import govukInsetText %}
+{% from "govuk/components/character-count/macro.njk" import govukCharacterCount %}
+{% from "govuk/components/details/macro.njk" import govukDetails %}
+
+{% set themeColor = "#1d70b8" %}
+{% set containerClasses = "board-container" %}
+
+{% block pageTitle %}{{ title }} – Task Board{% endblock %}
+
+{% block headIcons %}
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="/govuk/govuk-frontend.min.css">
+  <link rel="stylesheet" href="/static/board.css">
+{% endblock %}
+
+{% block govukHeader %}{% endblock %}
+
+{% block govukServiceNavigation %}
+  {{ govukServiceNavigation({
+    serviceName: "Task Board",
+    serviceUrl: "/",
+    navigation: [
+      { href: "/", text: "Board", current: path == "/" },
+      { href: "/tasks/new", text: "Add a task", current: path == "/tasks/new" }
+    ]
+  }) }}
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block bodyEnd %}
+  <script type="module" src="/static/board.js"></script>
+{% endblock %}

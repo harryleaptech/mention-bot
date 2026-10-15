@@ -20,6 +20,7 @@ export const hasSeen = (key) => seen.has(key);
 /** Remembers a handled mention so it is not offered again (survives restarts). */
 export function markSeen(key) {
   seen.add(key);
-  const list = [...seen].slice(-MAX_SEEN);
+  // The bot and the design-check command both write this file: keep the other's keys.
+  const list = [...new Set([...load().seen, ...seen])].slice(-MAX_SEEN);
   writeFileSync(FILE, JSON.stringify({ seen: list }, null, 2));
 }

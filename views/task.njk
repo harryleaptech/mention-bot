@@ -1,0 +1,54 @@
+{% extends "layout.njk" %}
+{% from "actions.njk" import taskActions %}
+{% set title = card.title %}
+
+{% block beforeContent %}
+  {{ govukBackLink({ text: "Back to the board", href: "/" }) }}
+{% endblock %}
+
+{% block content %}
+  {% if problem %}
+    {{ govukErrorSummary({ titleText: "There is a problem", descriptionText: problem }) }}
+  {% elif notice %}
+    {{ govukNotificationBanner({ type: "success", text: notice }) }}
+  {% endif %}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <span class="govuk-caption-l">{{ card.folderName }}</span>
+      <h1 class="govuk-heading-l">{{ card.title }}</h1>
+
+      {% set rows = [
+        { key: { text: "Status" }, value: { html: govukTag({ text: card.tag.text, classes: card.tag.classes }) } },
+        { key: { text: "Folder" }, value: { text: card.dir } },
+        { key: { text: "Added" }, value: { text: card.createdAt | when } }
+      ] %}
+      {% if card.startedAt %}{% set rows = (rows.push({ key: { text: "Started" }, value: { text: card.startedAt | when } }), rows) %}{% endif %}
+      {% if card.finishedAt %}{% set rows = (rows.push({ key: { text: "Finished" }, value: { text: card.finishedAt | when } }), rows) %}{% endif %}
+      {% if card.notes %}{% set rows = (rows.push({ key: { text: "Details" }, value: { html: '<span class="board-pre">' + (card.notes | escape) + '</span>' } }), rows) %}{% endif %}
+      {{ govukSummaryList({ rows: rows }) }}
+
+      {% if card.busy %}
+        {{ govukInsetText({ text: "Claude Code is working on this. Refresh the page to see when it finishes; you also get a DM." }) }}
+      {% endif %}
+
+      {% if card.error %}
+        <h2 class="govuk-heading-m">What went wrong</h2>
+        <pre class="board-output board-output--error">{{ card.error }}</pre>
+      {% endif %}
+
+      {% if card.result %}
+        <h2 class="govuk-heading-m">Result</h2>
+        <pre class="board-output">{{ card.result }}</pre>
+      {% endif %}
+
+      {% if card.resume %}
+        <h2 class="govuk-heading-m">Continue in a terminal</h2>
+        <p class="govuk-body">Paste this into a terminal to pick up the same Claude Code session:</p>
+        <pre class="board-output"><code>{{ card.resume }}</code></pre>
+      {% endif %}
+
+      {{ taskActions(card, key, "task") }}
+    </div>
+  </div>
+{% endblock %}

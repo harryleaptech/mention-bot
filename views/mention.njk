@@ -1,0 +1,64 @@
+{% extends "layout.njk" %}
+{% set title = ("Error: " if problem else "") + "Reply to " + mention.author %}
+{% set waiting = mention.status == "waiting" %}
+
+{% block beforeContent %}
+  {{ govukBackLink({ text: "Back to the board", href: "/" }) }}
+{% endblock %}
+
+{% block content %}
+  {% if problem %}
+    {{ govukErrorSummary({ titleText: "There is a problem", errorList: [{ text: problem, href: "#reply" }] }) }}
+  {% elif notice %}
+    {{ govukNotificationBanner({ type: "success", text: notice }) }}
+  {% endif %}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <span class="govuk-caption-l">{{ mention.source }} mention</span>
+      <h1 class="govuk-heading-l">Reply to {{ mention.author }}</h1>
+
+      {{ govukSummaryList({ rows: [
+        { key: { text: "Where" }, value: { html: '<a class="govuk-link" href="' + (mention.link | escape) + '" target="_blank" rel="noopener noreferrer">' + (mention.where | escape) + ' (opens in new tab)</a>' } },
+        { key: { text: "Received" }, value: { text: mention.createdAt | when } }
+      ] }) }}
+
+      <h2 class="govuk-heading-m">Message</h2>
+      <pre class="board-output">{{ mention.message }}</pre>
+
+      {% if mention.context %}
+        {{ govukDetails({ summaryText: "Earlier messages", html: '<pre class="board-output">' + (mention.context | escape) + '</pre>' }) }}
+      {% endif %}
+
+      {% if not waiting %}
+        {{ govukInsetText({ html: ("Reply sent: <a class=\"govuk-link\" href=\"" + (mention.sentUrl | escape) + "\">" + (mention.sentUrl | escape) + "</a>") if mention.status == "sent" else ("This mention was " + ("made into a task" if mention.status == "task" else mention.status) + ". Nothing was sent.") }) }}
+      {% else %}
+        <form method="post" action="/mentions/{{ mention.id }}/send" novalidate>
+          <input type="hidden" name="key" value="{{ key }}">
+          {{ govukCharacterCount({
+            id: "reply", name: "reply", value: reply, rows: 8, maxlength: mention.maxLen,
+            label: { text: "Your reply", classes: "govuk-label--m" },
+            hint: { text: ("Drafted by Claude from the message. " if mention.draft else "") + "Nothing is posted until you press Send reply. It goes as a " + ("comment on the thread." if mention.source == "GitHub" else "reply to the message.") },
+            errorMessage: { text: problem } if problem
+          }) }}
+          <div class="govuk-button-group">
+            {{ govukButton({ text: "Send reply", preventDoubleClick: true }) }}
+            {{ govukButton({ text: "Save draft", classes: "govuk-button--secondary", attributes: { formaction: "/mentions/" + mention.id + "/save" } }) }}
+          </div>
+        </form>
+
+        <h2 class="govuk-heading-m">Or</h2>
+        <div class="govuk-button-group">
+          <form method="post" action="/mentions/{{ mention.id }}/task" novalidate>
+            <input type="hidden" name="key" value="{{ key }}">
+            {{ govukButton({ text: "Make it a task", classes: "govuk-button--secondary", preventDoubleClick: true }) }}
+          </form>
+          <form method="post" action="/mentions/{{ mention.id }}/skip" novalidate>
+            <input type="hidden" name="key" value="{{ key }}">
+            {{ govukButton({ text: "Skip, don't reply", classes: "govuk-button--secondary", preventDoubleClick: true }) }}
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

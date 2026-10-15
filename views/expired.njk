@@ -1,0 +1,12 @@
+{% extends "layout.njk" %}
+{% set title = "The page has expired" %}
+
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <h1 class="govuk-heading-l">The page has expired</h1>
+      <p class="govuk-body">The bot restarted since you opened this page, so the form could not be sent. Nothing was changed.</p>
+      <p class="govuk-body"><a class="govuk-link" href="/">Go back to the board</a> and try again.</p>
+    </div>
+  </div>
+{% endblock %}

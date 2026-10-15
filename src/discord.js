@@ -1,17 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder, Events,
   GatewayIntentBits, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle,
 } from 'discord.js';
 import { draftReply } from './claude.js';
 import { hasSeen, markSeen } from './state.js';
+import {
+  addMention, closeMention, findMention, onDecided, registerSender, sendMention, updateMention,
+} from './mentions.js';
 
 const OWNER = process.env.DISCORD_OWNER_ID;
 const MODAL_MAX = 4000; // Discord's limit for a modal text field
 
-// Drafts waiting for a decision. Kept in memory only: after a restart the old
-// DMs' buttons answer "expired" and nothing is sent.
-const pending = new Map();
+// Mentions are kept in mentions.js (shared with the task board), so a DM's buttons still
+// work after a restart, and deciding on the board closes the DM.
 const inFlight = new Set();
 
 export const client = new Client({
@@ -23,6 +24,12 @@ export const client = new Client({
 });
 
 const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s || '');
+
+const STATUS_TEXT = {
+  sent: 'Sent',
+  skipped: 'Skipped — nothing sent',
+  task: 'Made into a task on the board — nothing sent',
+};
 
 function render(item, status) {
   const mention = new EmbedBuilder()
@@ -46,8 +53,8 @@ function buttons(id) {
 }
 
 /**
- * Drafts a reply for one mention and DMs it to the owner with Send / Edit /
- * Skip. Nothing is posted anywhere until the owner presses Send.
+ * Drafts a reply for one mention, keeps it for the board, and DMs it to the owner with
+ * Send / Edit / Skip. Nothing is posted anywhere until the owner presses Send.
  */
 export async function requestApproval(item) {
   if (inFlight.has(item.key) || hasSeen(item.key)) return;
@@ -60,10 +67,10 @@ export async function requestApproval(item) {
       item.error = e.message;
       console.error(`[draft] ${item.key}: ${e.message}`);
     }
-    const id = randomUUID();
-    pending.set(id, item);
+    const mention = addMention(item);
     const owner = await client.users.fetch(OWNER);
-    await owner.send({ embeds: render(item), components: buttons(id) });
+    const dm = await owner.send({ embeds: render(mention), components: buttons(mention.id) });
+    updateMention(mention, { dm: { channelId: dm.channelId, messageId: dm.id } });
     markSeen(item.key);
     console.log(`[queued] ${item.key} (${item.where})`);
   } finally {
@@ -71,8 +78,43 @@ export async function requestApproval(item) {
   }
 }
 
-client.on(Events.MessageCreate, async (msg) => {
-  if (msg.author.bot || msg.author.id === OWNER || !msg.inGuild()) return;
+// When I decide on the board, the DM shows it and loses its buttons.
+onDecided(async (mention) => {
+  if (!mention.dm) return;
+  const channel = await client.channels.fetch(mention.dm.channelId);
+  const message = await channel.messages.fetch(mention.dm.messageId);
+  await message.edit({
+    embeds: render(mention, STATUS_TEXT[mention.status] || mention.status),
+    content: mention.sentUrl || '',
+    components: [],
+  });
+});
+
+// A Discord reply goes as a reply to the message that mentioned me. parse: [] stops it from
+// pinging @everyone, roles or other users.
+registerSender('discord', async (target, text) => {
+  const channel = await client.channels.fetch(target.channelId);
+  const message = await channel.messages.fetch(target.messageId);
+  return (await message.reply({ content: text, allowedMentions: { parse: [], repliedUser: true } })).url;
+});
+
+/** DMs me the outcome of a task-board run. */
+export async function notifyTask(card) {
+  const ok = card.status === 'done';
+  const embed = new EmbedBuilder()
+    .setTitle(clip(`${ok ? 'Task done' : 'Task failed'}: ${card.title}`, 256))
+    .setDescription(clip(ok ? card.result : card.error, 4000) || '(no output)')
+    .setFooter({ text: clip(card.sessionId ? `${card.dir} · claude --resume ${card.sessionId}` : card.dir, 2000) });
+  const owner = await client.users.fetch(OWNER);
+  await owner.send({ embeds: [embed] });
+}
+
+/**
+ * Offers one Discord message for a reply if it @mentions me. Messages from other bots count
+ * (the team works through bots: Jack's Claude, the desk); only this bot's own are skipped.
+ */
+async function handleMessage(msg) {
+  if (msg.author.id === client.user?.id || msg.author.id === OWNER || !msg.inGuild()) return;
   if (!msg.mentions.users.has(OWNER)) return;
 
   let context = '';
@@ -91,13 +133,37 @@ client.on(Events.MessageCreate, async (msg) => {
     context,
     link: msg.url,
     maxLen: 2000,
-    // parse: [] stops the reply from pinging @everyone, roles or other users.
-    send: async (text) => (await msg.reply({
-      content: text,
-      allowedMentions: { parse: [], repliedUser: true },
-    })).url,
+    target: { kind: 'discord', channelId: msg.channelId, messageId: msg.id },
   }).catch((e) => console.error(`[discord] ${msg.id}: ${e.message}`));
-});
+}
+
+client.on(Events.MessageCreate, handleMessage);
+
+const CATCHUP_MS = (Number(process.env.CATCHUP_HOURS) || 24) * 60 * 60 * 1000;
+
+/**
+ * On start, offers the mentions from the last CATCHUP_HOURS that arrived while the bot was
+ * off (Discord doesn't replay them). Ones already handled are skipped by requestApproval.
+ */
+export async function catchUpDiscord() {
+  const after = Date.now() - CATCHUP_MS;
+  const found = [];
+  for (const guild of client.guilds.cache.values()) {
+    const channels = [...(await guild.channels.fetch()).values()].filter((c) => c?.isTextBased());
+    const threads = [...(await guild.channels.fetchActiveThreads()).threads.values()];
+    for (const channel of [...channels, ...threads]) {
+      try {
+        const recent = await channel.messages.fetch({ limit: 100 });
+        for (const m of recent.values()) {
+          if (m.createdTimestamp >= after && m.mentions.users.has(OWNER) && !hasSeen(`discord:${m.id}`)) found.push(m);
+        }
+      } catch { /* no access to this channel */ }
+    }
+  }
+  found.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  console.log(`[discord] catch-up: ${found.length} mention(s) from the last ${CATCHUP_MS / 3600000}h`);
+  for (const m of found) await handleMessage(m);
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton() && !interaction.isModalSubmit()) return;
@@ -106,9 +172,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return await interaction.reply({ content: 'This is not yours to approve.', flags: MessageFlags.Ephemeral });
     }
     const [action, id] = interaction.customId.split(':');
-    const item = pending.get(id);
+    const item = findMention(id);
     if (!item) {
-      return await interaction.update({ content: 'Expired (the bot restarted). Nothing was sent.', components: [] });
+      return await interaction.update({ content: 'This mention is no longer kept. Nothing was sent.', components: [] });
+    }
+    if (item.status !== 'waiting') {
+      return await interaction.update({ embeds: render(item, STATUS_TEXT[item.status] || item.status), content: item.sentUrl || '', components: [] });
     }
 
     if (action === 'edit') {
@@ -122,14 +191,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (action === 'save') {
-      item.draft = interaction.fields.getTextInputValue('text').trim();
-      item.error = undefined;
+      updateMention(item, { draft: interaction.fields.getTextInputValue('text').trim(), error: undefined });
       return await interaction.update({ embeds: render(item, 'Draft reply (edited) — not sent yet'), components: buttons(id) });
     }
 
     if (action === 'skip') {
-      pending.delete(id);
-      return await interaction.update({ embeds: render(item, 'Skipped — nothing sent'), components: [] });
+      closeMention(item, 'skipped'); // onDecided updates this DM
+      return await interaction.deferUpdate();
     }
 
     if (action === 'send') {
@@ -144,10 +212,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       await interaction.deferUpdate();
       try {
-        const url = await item.send(item.draft);
-        pending.delete(id);
-        await interaction.editReply({ embeds: render(item, 'Sent'), content: url, components: [] });
-        console.log(`[sent] ${item.key} -> ${url}`);
+        await sendMention(item, item.draft); // onDecided updates this DM
       } catch (e) {
         console.error(`[send] ${item.key}: ${e.message}`);
         await interaction.followUp({ content: `Not sent: ${clip(e.message, 300)}` });

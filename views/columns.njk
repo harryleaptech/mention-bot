@@ -1,0 +1,93 @@
+{#- Mentions and the three task columns. Rendered inside board.njk, and alone at /columns for
+    the live refresh. Cards are compact; the full text is on the mention and task pages. -#}
+{% from "govuk/components/button/macro.njk" import govukButton %}
+{% from "actions.njk" import taskActions %}
+
+{% macro hidden(key) %}<input type="hidden" name="key" value="{{ key }}">{% endmacro %}
+
+<div class="govuk-grid-row board-row">
+  {% for column in columns %}
+    {% set items = column.mentions if column.id == "mentions" else column.cards %}
+    <section class="govuk-grid-column-one-quarter board-column board-column--{{ column.id }}" aria-labelledby="column-{{ column.id }}">
+      <div class="board-panel">
+        <h2 class="board-panel__title" id="column-{{ column.id }}">
+          {{ column.title }} <span class="board-count">{{ items | length }}</span>
+        </h2>
+
+        {#- Each column scrolls on its own; tabindex lets keyboard users scroll it too. -#}
+        <div class="board-scroll" data-col="{{ column.id }}" tabindex="0" aria-labelledby="column-{{ column.id }}">
+          {% if column.id == "mentions" %}
+            {% for m in items %}
+              <article class="board-card board-card--{{ m.source | lower }}">
+                <h3 class="board-card__title"><a class="govuk-link" href="/mentions/{{ m.id }}">{{ m.author }}</a></h3>
+                <p class="board-card__meta">
+                  <strong class="govuk-tag {{ 'govuk-tag--purple' if m.source == 'GitHub' else 'govuk-tag--blue' }}">{{ m.source }}</strong>
+                  <span>{{ m.createdAt | ago }}</span>
+                </p>
+                <p class="board-card__where">{{ m.where }}</p>
+                <p class="board-card__text">{{ m.message | plain }}</p>
+                {% if m.draft %}
+                  <div class="board-card__draft">
+                    <span class="board-card__label">Draft reply</span>
+                    <p class="board-card__text">{{ m.draft | plain }}</p>
+                  </div>
+                {% else %}
+                  <p class="board-card__note">{{ "No draft: " + m.error if m.error else "No draft yet" }}</p>
+                {% endif %}
+                <div class="board-card__actions">
+                  {% if m.draft %}
+                    <form method="post" action="/mentions/{{ m.id }}/send" novalidate>
+                      {{ hidden(key) }}
+                      {{ govukButton({ text: "Send", classes: "board-btn", preventDoubleClick: true }) }}
+                    </form>
+                  {% endif %}
+                  <a class="govuk-button govuk-button--secondary board-btn" href="/mentions/{{ m.id }}">Edit<span class="govuk-visually-hidden"> reply to {{ m.author }}</span></a>
+                  <form method="post" action="/mentions/{{ m.id }}/task" novalidate>
+                    {{ hidden(key) }}
+                    {{ govukButton({ text: "Make task", classes: "govuk-button--secondary board-btn", preventDoubleClick: true }) }}
+                  </form>
+                  <form method="post" action="/mentions/{{ m.id }}/skip" novalidate>
+                    {{ hidden(key) }}
+                    <button type="submit" class="board-link-button">Skip<span class="govuk-visually-hidden"> mention from {{ m.author }}</span></button>
+                  </form>
+                </div>
+              </article>
+            {% else %}
+              <p class="board-empty">No mentions waiting</p>
+            {% endfor %}
+          {% else %}
+            {% for card in items %}
+              <article class="board-card board-card--{{ 'closed' if card.tag.text == 'Closed' else card.status }}">
+                <h3 class="board-card__title"><a class="govuk-link" href="/tasks/{{ card.id }}">{{ card.title }}</a></h3>
+                <p class="board-card__meta">
+                  <strong class="govuk-tag {{ card.tag.classes }}">{{ card.tag.text }}</strong>
+                  <span>{{ card.folderName }}</span>
+                  {% if card.status == "running" %}
+                    <span>· started {{ card.startedAt | ago }}</span>
+                  {% elif card.finishedAt %}
+                    <span>· {{ card.finishedAt | ago }}</span>
+                  {% endif %}
+                </p>
+                {% if card.error %}
+                  <p class="board-card__text board-card__text--error">{{ card.error | plain }}</p>
+                {% elif card.result %}
+                  <p class="board-card__text">{{ card.result | plain }}</p>
+                {% elif card.notes %}
+                  <p class="board-card__text">{{ card.notes | plain }}</p>
+                {% endif %}
+                {% if card.status == "running" %}
+                  <p class="board-card__note"><span class="board-spinner" aria-hidden="true"></span> Claude Code is working on it</p>
+                {% elif card.status == "waiting" %}
+                  <p class="board-card__note">Waiting for the task before it to finish</p>
+                {% endif %}
+                {{ taskActions(card, key, "board") }}
+              </article>
+            {% else %}
+              <p class="board-empty">{{ { todo: "Nothing to do. Add a task.", doing: "Nothing running", done: "Nothing finished yet" }[column.id] }}</p>
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endfor %}
+</div>

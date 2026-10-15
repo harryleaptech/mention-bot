@@ -1,0 +1,23 @@
+{% extends "layout.njk" %}
+{% set title = "Task board" %}
+
+{% block content %}
+  {% if notice %}
+    {{ govukNotificationBanner({ type: "success", text: notice }) }}
+  {% endif %}
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      <h1 class="govuk-heading-l govuk-!-margin-bottom-2">Task board</h1>
+      <p class="govuk-body-s board-intro">Mentions wait with a drafted reply; nothing is posted until you press Send. A started task runs with Claude Code and ends as local changes; you get a DM when it finishes.</p>
+    </div>
+    <div class="govuk-grid-column-one-third board-add">
+      {{ govukButton({ text: "Add a task", href: "/tasks/new" }) }}
+    </div>
+  </div>
+
+  <div id="columns" data-busy="{{ 1 if busy else 0 }}">
+    {% include "columns.njk" %}
+  </div>
+  <div class="govuk-visually-hidden" aria-live="polite" id="columns-status"></div>
+{% endblock %}

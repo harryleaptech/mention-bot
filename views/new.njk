@@ -1,0 +1,55 @@
+{% extends "layout.njk" %}
+{% set title = ("Error: " if errors else "") + "Add a task" %}
+
+{% block beforeContent %}
+  {{ govukBackLink({ text: "Back to the board", href: "/" }) }}
+{% endblock %}
+
+{% block content %}
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+      {% if errors %}
+        {% set list = [] %}
+        {% if errors.title %}{% set list = (list.push({ text: errors.title, href: "#title" }), list) %}{% endif %}
+        {% if errors.dir %}{% set list = (list.push({ text: errors.dir, href: "#dir" }), list) %}{% endif %}
+        {{ govukErrorSummary({ titleText: "There is a problem", errorList: list }) }}
+      {% endif %}
+
+      <h1 class="govuk-heading-l">Add a task</h1>
+
+      <form method="post" action="/tasks" novalidate>
+        <input type="hidden" name="key" value="{{ key }}">
+
+        {{ govukInput({
+          id: "title", name: "title", value: values.title,
+          label: { text: "What should Claude Code do?", classes: "govuk-label--m" },
+          hint: { text: "For example, write the missing test for RankHasRateInForce" },
+          errorMessage: { text: errors.title } if errors and errors.title,
+          attributes: { maxlength: 300 }
+        }) }}
+
+        {{ govukTextarea({
+          id: "notes", name: "notes", value: values.notes, rows: 6,
+          label: { text: "Details (optional)", classes: "govuk-label--m" },
+          hint: { text: "The PR or issue, the files, and what done looks like. The task runs on its own, so say everything it needs." }
+        }) }}
+
+        {% set items = [] %}
+        {% for folder in folders %}
+          {% set items = (items.push({ value: folder.path, text: folder.name, hint: { text: folder.path }, checked: folder.path == values.dir }), items) %}
+        {% endfor %}
+        {{ govukRadios({
+          idPrefix: "dir", name: "dir", items: items,
+          fieldset: { legend: { text: "Which folder does it run in?", classes: "govuk-fieldset__legend--m" } },
+          errorMessage: { text: errors.dir } if errors and errors.dir
+        }) }}
+
+        <div class="govuk-button-group">
+          {{ govukButton({ text: "Add and start", name: "action", value: "start", preventDoubleClick: true }) }}
+          {{ govukButton({ text: "Add to To do", name: "action", value: "add", classes: "govuk-button--secondary", preventDoubleClick: true }) }}
+          <a class="govuk-link" href="/">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
