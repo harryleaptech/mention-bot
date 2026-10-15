@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { hasSeen, markSeen } from './state.js';
+import { config } from '../config.js';
+import { hasSeen, markSeen } from '../store/seen.js';
 
 // Posts a design preview (ADR-065) as one forum post, then puts its link in
 // the team channel. Without --post it only prints what it would send.
@@ -28,12 +29,12 @@ for (const name of ['DISCORD_TOKEN', 'DESIGN_CHECK_FORUM_ID', 'DESIGN_CHECK_LINK
   if (!process.env[name]) fail(`Missing ${name} in .env.`);
 }
 
-const FORUM = process.env.DESIGN_CHECK_FORUM_ID;
-const LINK_CHANNEL = process.env.DESIGN_CHECK_LINK_CHANNEL_ID;
-const MENTION = process.env.DESIGN_CHECK_MENTION_ID;
+const FORUM = config.designCheck.forumId;
+const LINK_CHANNEL = config.designCheck.linkChannelId;
+const MENTION = config.designCheck.mentionId;
 
 async function discord(path, { payload, files = [] } = {}) {
-  const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
+  const headers = { Authorization: `Bot ${config.discord.token}` };
   let body;
   if (files.length) {
     body = new FormData();
@@ -62,7 +63,10 @@ function splitLong(text) {
   const out = [];
   let current = '';
   for (const para of text.split(/\n{2,}/)) {
-    if (para.length > MESSAGE_MAX) fail(`One paragraph is over ${MESSAGE_MAX} characters. Add a blank line inside it:\n${para.slice(0, 120)}…`);
+    if (para.length > MESSAGE_MAX)
+      fail(
+        `One paragraph is over ${MESSAGE_MAX} characters. Add a blank line inside it:\n${para.slice(0, 120)}…`,
+      );
     if (current && current.length + para.length + 2 > MESSAGE_MAX) {
       out.push(current);
       current = para;
@@ -84,10 +88,20 @@ function parse(path) {
 
   const rest = lines.slice(titleAt + 1);
   const lineAt = rest.findIndex((l) => /^line:/i.test(l));
-  const linkLine = lineAt >= 0 ? rest.splice(lineAt, 1)[0].replace(/^line:/i, '').trim() : title;
+  const linkLine =
+    lineAt >= 0
+      ? rest
+          .splice(lineAt, 1)[0]
+          .replace(/^line:/i, '')
+          .trim()
+      : title;
 
   // One message per "## " section; text above the first section goes with it.
-  const sections = rest.join('\n').split(/\n(?=## )/).map((s) => s.trim()).filter(Boolean);
+  const sections = rest
+    .join('\n')
+    .split(/\n(?=## )/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (sections.length > 1 && !sections[0].startsWith('## ')) {
     sections.splice(0, 2, `${sections[0]}\n\n${sections[1]}`);
   }
@@ -97,7 +111,8 @@ function parse(path) {
     for (const content of splitLong(section)) {
       const names = [...new Set(content.match(MEDIA) || [])];
       const files = names.map((n) => join(folder, n)).filter((f) => existsSync(f));
-      if (files.length > FILES_MAX) fail(`A message has ${files.length} files; Discord allows ${FILES_MAX}. Split the section.`);
+      if (files.length > FILES_MAX)
+        fail(`A message has ${files.length} files; Discord allows ${FILES_MAX}. Split the section.`);
       for (const f of files) {
         if (statSync(f).size > FILE_BYTES_MAX) fail(`${basename(f)} is over 10 MB.`);
       }
@@ -127,10 +142,13 @@ const key = `design-check:${preview.title}`;
 
 console.log(`Forum post title: ${preview.title}`);
 preview.messages.forEach((m, i) => {
-  console.log(`\n--- message ${i + 1} of ${preview.messages.length} (${m.content.length} characters, ${m.files.length} file(s))`);
+  console.log(
+    `\n--- message ${i + 1} of ${preview.messages.length} (${m.content.length} characters, ${m.files.length} file(s))`,
+  );
   console.log(m.content);
   if (m.files.length) console.log(`[attached: ${m.files.map((f) => basename(f)).join(', ')}]`);
-  if (m.missing.length) console.log(`[NOT FOUND next to the preview, so not attached: ${m.missing.join(', ')}]`);
+  if (m.missing.length)
+    console.log(`[NOT FOUND next to the preview, so not attached: ${m.missing.join(', ')}]`);
 });
 console.log(`\n--- line for the team channel\n${preview.linkLine}: <link to the post>`);
 if (!MENTION && /@D\b/.test(preview.messages[0].content)) {
@@ -142,7 +160,9 @@ if (!flags.has('--post')) {
   process.exit(0);
 }
 if (hasSeen(key) && !flags.has('--again')) {
-  fail('\nThis title was already posted. A new version goes inside the existing post; use --again only for a new post.');
+  fail(
+    '\nThis title was already posted. A new version goes inside the existing post; use --again only for a new post.',
+  );
 }
 
 const forum = await discord(`/channels/${FORUM}`);
@@ -167,6 +187,8 @@ try {
   });
   console.log('Link posted in the team channel.');
 } catch (e) {
-  console.error(`The forum post is up, but the link line failed (${e.message}). Paste this yourself:\n${preview.linkLine}: ${url}`);
+  console.error(
+    `The forum post is up, but the link line failed (${e.message}). Paste this yourself:\n${preview.linkLine}: ${url}`,
+  );
   process.exit(1);
 }

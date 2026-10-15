@@ -1,10 +1,11 @@
-import { registerSender } from './mentions.js';
+import { config } from '../config.js';
+import { clip } from '../lib/text.js';
+import { registerSender } from '../store/mentions.js';
 
 const API = 'https://api.github.com';
 const LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 // On start, look back this far so a restart never loses a mention (handled ones are in state.json).
-const CATCHUP_MS = (Number(process.env.CATCHUP_HOURS) || 24) * 60 * 60 * 1000;
-const STARTED = new Date(Date.now() - CATCHUP_MS).toISOString();
+const STARTED = new Date(Date.now() - config.catchUpMs).toISOString();
 
 // Notification versions already examined in this run, so an unread mention is
 // not re-fetched on every poll.
@@ -14,7 +15,7 @@ async function gh(url, { method = 'GET', body } = {}) {
   const res = await fetch(url.startsWith('http') ? url : API + url, {
     method,
     headers: {
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Authorization: `Bearer ${config.github.token}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'mention-bot',
@@ -38,8 +39,6 @@ function mentions(text, login) {
   return new RegExp(`@${login}(?![A-Za-z0-9-])`, 'i').test(text || '');
 }
 
-const clip = (s, n) => (s && s.length > n ? `${s.slice(0, n)}…` : s || '');
-
 /**
  * Returns the unread GitHub mentions as approval items, plus how long GitHub
  * asks us to wait before the next poll. Issue and pull request threads: comments,
@@ -52,7 +51,9 @@ export async function fetchMentions(login) {
   // Opening a thread on GitHub marks it read, which drops it from the unread
   // list before the next poll. So also take read ones updated since the
   // catch-up window before startup.
-  const { data: recent } = await gh(`/notifications?participating=true&all=true&per_page=50&since=${STARTED}`);
+  const { data: recent } = await gh(
+    `/notifications?participating=true&all=true&per_page=50&since=${STARTED}`,
+  );
   const notes = [...new Map([...unread, ...recent].map((n) => [n.id, n])).values()];
   const items = [];
 
@@ -75,9 +76,24 @@ export async function fetchMentions(login) {
       ({ data: reviews } = await gh(`${n.subject.url}/reviews?per_page=100`));
     }
     const thread = [
-      ...comments.map((c) => ({ kind: 'comment', id: c.id, user: c.user, body: c.body, url: c.html_url, at: c.created_at })),
-      ...reviews.filter((r) => r.body && r.submitted_at >= since)
-        .map((r) => ({ kind: 'review', id: r.id, user: r.user, body: r.body, url: r.html_url, at: r.submitted_at })),
+      ...comments.map((c) => ({
+        kind: 'comment',
+        id: c.id,
+        user: c.user,
+        body: c.body,
+        url: c.html_url,
+        at: c.created_at,
+      })),
+      ...reviews
+        .filter((r) => r.body && r.submitted_at >= since)
+        .map((r) => ({
+          kind: 'review',
+          id: r.id,
+          user: r.user,
+          body: r.body,
+          url: r.html_url,
+          at: r.submitted_at,
+        })),
     ].sort((a, b) => a.at.localeCompare(b.at));
     const mine = (x) => x.user?.login?.toLowerCase() === me;
     const mentioning = thread.filter((x) => !mine(x) && mentions(x.body, login));
@@ -98,7 +114,8 @@ export async function fetchMentions(login) {
 
     for (const x of offer) {
       const index = thread.indexOf(x);
-      const earlier = thread.slice(Math.max(0, index - 5), index)
+      const earlier = thread
+        .slice(Math.max(0, index - 5), index)
         .map((y) => `${y.user?.login}: ${clip(y.body, 600)}`);
       items.push({
         ...base,
@@ -129,3 +146,29 @@ registerSender('github', async (target, text) => {
   const { data } = await gh(target.commentsUrl, { method: 'POST', body: { body: text } });
   return data.html_url;
 });
+
+/**
+ * Polls GitHub for mentions and hands each to `onMention`. Waits at least GITHUB_POLL_SECONDS
+ * between polls, longer when GitHub asks.
+ */
+export async function watchGitHub(onMention) {
+  if (!config.github.token) {
+    console.log('[github] GITHUB_TOKEN is empty: GitHub mentions are off.');
+    return;
+  }
+  const login = await getLogin();
+  console.log(`[github] watching mentions of @${login}`);
+
+  const tick = async () => {
+    let wait = config.github.pollSeconds;
+    try {
+      const { items, pollSeconds } = await fetchMentions(login);
+      wait = Math.max(config.github.pollSeconds, pollSeconds);
+      for (const item of items) await onMention(item);
+    } catch (e) {
+      console.error(`[github] ${e.message}`);
+    }
+    setTimeout(tick, wait * 1000);
+  };
+  tick();
+}

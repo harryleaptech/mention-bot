@@ -113,6 +113,33 @@ and only that column is redrawn.
 - Cards are kept in `board.json`. A run cut off by a restart is marked failed.
 - Each run uses your Claude subscription. A run stops after `BOARD_TIMEOUT_MINUTES`.
 
+## Project layout
+
+```
+src/
+  index.js              start-up: checks .env, starts Discord, GitHub and the board
+  config.js             every setting from .env, read in one place
+  lib/                  small shared helpers (text, change events)
+  store/                what is saved to disk: seen.js (state.json),
+                        mentions.js (mentions.json), tasks.js (board.json)
+  claude/               cli.js (runs `claude -p`), drafts.js (reply drafts),
+                        tasks.js (board tasks, with the allowed/blocked tool lists)
+  discord/              client.js, mentions.js (reading + catch-up),
+                        approvals.js (the DM with Send / Edit / Skip)
+  github/               mentions.js (polling, comments and PR reviews)
+  board/                server.js (wiring), security.js, filters.js, view-models.js,
+                        runner.js (task queue), routes/ (live, tasks, mentions)
+  tools/design-check.js `npm run design-check`
+views/                  layout.njk, pages/, partials/ (Nunjucks + GOV.UK macros)
+public/                 css/ (board.css = GOV.UK look, themes.css = Modern),
+                        js/ (main, live, notices, theme, storage), favicon.svg
+```
+
+```bash
+npm run check          # syntax of every JS file
+npm run format         # Prettier (format:check to only check)
+```
+
 ## Limits
 
 - The bot only sees Discord servers it was invited to, and no DMs.

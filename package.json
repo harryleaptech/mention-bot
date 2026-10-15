@@ -6,8 +6,11 @@
   "description": "DMs me my Discord and GitHub mentions with a Claude-drafted reply, and sends it only after I approve.",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/index.js && node --check src/claude.js && node --check src/github.js && node --check src/discord.js && node --check src/state.js && node --check src/design-check.js && node --check src/board.js && node --check src/board-server.js && node --check src/mentions.js && node --check src/events.js",
-    "design-check": "node src/design-check.js"
+    "check": "for f in $(find src public/js scripts -name '*.js' -o -name '*.mjs' | grep -v node_modules); do node --check \"$f\" || exit 1; done && echo 'syntax ok'",
+    "format": "prettier --write src public scripts",
+    "format:check": "prettier --check src public scripts",
+    "design-check": "node src/tools/design-check.js",
+    "docs:media": "node scripts/docs/capture.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -18,5 +21,9 @@
     "express": "5.2.1",
     "govuk-frontend": "6.5.1",
     "nunjucks": "3.2.4"
+  },
+  "devDependencies": {
+    "playwright-core": "1.48.2",
+    "prettier": "3.9.9"
   }
 }

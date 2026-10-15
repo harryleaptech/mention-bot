@@ -1,0 +1,449 @@
+/* Task Board on GOV.UK Frontend. GDS Transport is only for GOV.UK services: point that font
+   name at the system font instead (these faces come after GOV.UK's, so they win and the
+   GOV.UK font files are never requested). */
+@font-face {
+  font-family: 'GDS Transport';
+  font-weight: 400;
+  src: local('Helvetica Neue'), local('HelveticaNeue'), local('Arial');
+}
+@font-face {
+  font-family: 'GDS Transport';
+  font-weight: 700;
+  src: local('Helvetica Neue Bold'), local('HelveticaNeue-Bold'), local('Arial Bold');
+}
+
+/* A board needs more width than GOV.UK's 960px reading column. */
+.board-container,
+.govuk-service-navigation .govuk-width-container {
+  max-width: 1400px;
+}
+
+.board-add {
+  text-align: right;
+}
+@media (max-width: 40.0525em) {
+  .board-add {
+    text-align: left;
+  }
+}
+.board-intro {
+  color: #505a5f;
+  max-width: 46em;
+}
+
+/* The board's own elements use GOV.UK's font stack too (GOV.UK only sets it on govuk-* classes). */
+.board-panel,
+.board-card,
+.board-link-button,
+.board-mode {
+  font-family: 'GDS Transport', arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Columns: a light grey panel each, GOV.UK's light grey ---- */
+.board-row {
+  margin-left: -8px;
+  margin-right: -8px;
+}
+.board-row > .board-column {
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-bottom: 16px;
+}
+.board-panel {
+  display: flex;
+  flex-direction: column;
+  background: #f3f2f1;
+  border: 1px solid #b1b4b6;
+  border-radius: 6px;
+  padding: 12px 10px 10px;
+  /* A fixed, full-height panel: fills the window under the title; its cards scroll inside. */
+  height: calc(100vh - 240px);
+  min-height: 360px;
+}
+/* Stacked columns (narrow window, phone): each panel is a fixed part of the screen. */
+@media (max-width: 40.0525em) {
+  .board-panel {
+    height: 70vh;
+    min-height: 300px;
+  }
+}
+.board-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 10px;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0b0c0c;
+}
+.board-count {
+  min-width: 26px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  color: #505a5f;
+}
+.board-empty {
+  margin: 0;
+  padding: 24px 10px;
+  border: 2px dashed #b1b4b6;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 16px;
+  color: #505a5f;
+}
+.board-scroll:has(> .board-empty) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.board-scroll:has(> .board-empty) .board-empty {
+  margin: auto 0;
+}
+
+/* Each column's cards scroll inside its panel, at every width. */
+.board-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+  margin: 0 -4px 0 -2px;
+  overscroll-behavior: contain;
+}
+/* The focus frame is for keyboard users scrolling a column; a mouse click doesn't show it. */
+.board-scroll:focus {
+  outline: none;
+}
+.board-scroll:focus-visible {
+  outline: 3px solid #ffdd00;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #0b0c0c;
+  border-radius: 4px;
+}
+.board-scroll {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #b1b4b6 transparent;
+}
+.board-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.board-scroll::-webkit-scrollbar-thumb {
+  background: #b1b4b6;
+  border-radius: 8px;
+}
+.board-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6f777b;
+}
+.board-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-scroll {
+    scroll-behavior: auto;
+  }
+}
+
+/* ---- Cards: compact, with a status strip on the left ---- */
+.board-card {
+  position: relative;
+  margin: 0 0 10px;
+  padding: 12px 12px 10px 16px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(11, 12, 12, 0.18);
+  font-size: 16px;
+  line-height: 1.4;
+  color: #0b0c0c;
+}
+.board-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  border-radius: 6px 0 0 6px;
+  background: #b1b4b6;
+}
+.board-card--github::before {
+  background: #4c2c92;
+}
+.board-card--discord::before {
+  background: #1d70b8;
+}
+.board-card--waiting::before {
+  background: #1d70b8;
+}
+.board-card--running::before {
+  background: #ffdd00;
+}
+.board-card--done::before {
+  background: #00703c;
+}
+.board-card--failed::before {
+  background: #d4351c;
+}
+
+.board-card__title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  word-break: break-word;
+}
+.board-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #505a5f;
+}
+.board-card__meta .govuk-tag {
+  font-size: 13px;
+  padding: 1px 6px;
+}
+.board-card__where {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #505a5f;
+  word-break: break-word;
+}
+
+/* Three lines at most on a card; the full text is one click away. */
+.board-card__text {
+  margin: 0 0 8px;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.board-card__text--error {
+  color: #d4351c;
+}
+.board-card__draft {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-left: 4px solid #b1b4b6;
+  background: #f8f8f8;
+}
+.board-card__draft .board-card__text {
+  margin: 0;
+}
+.board-card__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #505a5f;
+}
+.board-card__note {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #505a5f;
+}
+
+/* Smaller GOV.UK buttons for cards (GOV.UK Frontend has no small size). */
+.board-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.board-card__actions form {
+  display: contents;
+}
+.govuk-button.board-btn {
+  margin: 0 0 4px;
+  padding: 5px 10px 4px;
+  font-size: 15px;
+  line-height: 1.25;
+  box-shadow: 0 2px 0 #002d18;
+}
+.govuk-button--secondary.board-btn {
+  box-shadow: 0 2px 0 #929191;
+}
+/* GOV.UK makes buttons full width on phones; on a card they stay small and in one row. */
+.govuk-button.board-btn {
+  width: auto;
+}
+.board-card__actions .govuk-link {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.board-link-button {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  color: #1d70b8;
+  text-decoration: underline;
+  text-underline-offset: 0.1578em;
+}
+.board-link-button:hover {
+  color: #003078;
+  text-decoration-thickness: 3px;
+}
+.board-link-button:focus {
+  outline: 3px solid transparent;
+  color: #0b0c0c;
+  background: #ffdd00;
+  box-shadow:
+    0 -2px #ffdd00,
+    0 4px #0b0c0c;
+  text-decoration: none;
+}
+
+.board-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border: 2px solid #b1b4b6;
+  border-top-color: #0b0c0c;
+  border-radius: 50%;
+  animation: board-spin 1s linear infinite;
+}
+@keyframes board-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-spinner {
+    animation: none;
+  }
+}
+
+/* ---- Task and mention pages ---- */
+.board-pre {
+  white-space: pre-wrap;
+}
+.board-output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 30px;
+  padding: 15px;
+  background: #f3f2f1;
+  border-left: 5px solid #b1b4b6;
+  max-height: 520px;
+  overflow: auto;
+}
+.board-output--error {
+  border-left-color: #d4351c;
+}
+
+/* Success notices fade out (board.js removes them after 3 seconds). */
+.govuk-notification-banner--success {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+.board-notice--hide {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .govuk-notification-banner--success {
+    transition: none;
+  }
+}
+
+/* Live / Manual switch above the columns. */
+.board-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0 0 12px;
+}
+.board-mode[hidden] {
+  display: none;
+}
+.board-mode__fieldset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.board-mode__legend {
+  float: left;
+  margin: 0 4px 0 0;
+  font-weight: 700;
+  font-size: 16px;
+}
+.board-mode .govuk-radios {
+  margin: 0;
+}
+.board-mode .govuk-radios__item {
+  margin-bottom: 0;
+}
+.board-mode__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #505a5f;
+}
+.board-mode__status::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b1b4b6;
+}
+.board-mode__status[data-state='live']::before {
+  background: #00703c;
+  box-shadow: 0 0 0 3px rgba(0, 112, 60, 0.18);
+}
+.board-mode__status[data-state='off']::before {
+  background: #d4351c;
+}
+.board-mode__status:empty {
+  display: none;
+}
+.board-mode__pending {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fff7bf;
+  font-size: 14px;
+  font-weight: 700;
+}
+.board-mode__pending[hidden],
+.board-mode__refresh[hidden] {
+  display: none;
+}
+.board-mode .board-mode__refresh {
+  margin: 0;
+}
+.board-mode__theme {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.board-mode__theme .board-mode__legend {
+  float: none;
+  margin: 0;
+}
+.board-mode__select {
+  min-width: 0;
+  width: auto;
+  height: 34px;
+  padding: 2px 8px;
+  font-size: 15px;
+}

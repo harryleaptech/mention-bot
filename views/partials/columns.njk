@@ -1,7 +1,7 @@
 {#- Mentions and the three task columns. Rendered inside board.njk, and alone at /columns for
     the live refresh. Cards are compact; the full text is on the mention and task pages. -#}
 {% from "govuk/components/button/macro.njk" import govukButton %}
-{% from "actions.njk" import taskActions %}
+{% from "partials/task-actions.njk" import taskActions %}
 
 {% macro hidden(key) %}<input type="hidden" name="key" value="{{ key }}">{% endmacro %}
 
