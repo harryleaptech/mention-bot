@@ -134,3 +134,19 @@
 [discord] catch-up: 0 mention(s) from the last 24h
 [queued] discord:1560198775354429491 (Leaptechnology #enquote-v2)
 [sent] discord:1560198775354429491 -> https://discord.com/channels/1139372769327452251/1192041868595318814/1560198885509693491
+
+> mention-bot@0.1.0 start
+> node src/index.js
+
+[board] http://127.0.0.1:4747
+[discord] logged in as HarryBuddy#2234, in 1 server(s)
+[github] watching mentions of @harryleaptech
+[discord] catch-up: 0 mention(s) from the last 24h
+
+> mention-bot@0.1.0 start
+> node src/index.js
+
+[board] http://127.0.0.1:4747
+[discord] logged in as HarryBuddy#2234, in 1 server(s)
+[github] watching mentions of @harryleaptech
+[discord] catch-up: 0 mention(s) from the last 24h

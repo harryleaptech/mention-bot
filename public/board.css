@@ -13,7 +13,7 @@
 .board-intro { color: #505a5f; max-width: 46em; }
 
 /* The board's own elements use GOV.UK's font stack too (GOV.UK only sets it on govuk-* classes). */
-.board-panel, .board-card, .board-link-button {
+.board-panel, .board-card, .board-link-button, .board-mode {
   font-family: "GDS Transport", arial, sans-serif;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
@@ -132,3 +132,24 @@
   background: #f3f2f1; border-left: 5px solid #b1b4b6; max-height: 520px; overflow: auto;
 }
 .board-output--error { border-left-color: #d4351c; }
+
+/* Success notices fade out (board.js removes them after 3 seconds). */
+.govuk-notification-banner--success { transition: opacity .35s ease, transform .35s ease; }
+.board-notice--hide { opacity: 0; transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) { .govuk-notification-banner--success { transition: none; } }
+
+/* Live / Manual switch above the columns. */
+.board-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 12px; }
+.board-mode[hidden] { display: none; }
+.board-mode__fieldset { display: flex; align-items: center; gap: 10px; }
+.board-mode__legend { float: left; margin: 0 4px 0 0; font-weight: 700; font-size: 16px; }
+.board-mode .govuk-radios { margin: 0; }
+.board-mode .govuk-radios__item { margin-bottom: 0; }
+.board-mode__status { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #505a5f; }
+.board-mode__status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #b1b4b6; }
+.board-mode__status[data-state="live"]::before { background: #00703c; box-shadow: 0 0 0 3px rgba(0, 112, 60, .18); }
+.board-mode__status[data-state="off"]::before { background: #d4351c; }
+.board-mode__status:empty { display: none; }
+.board-mode__pending { padding: 2px 8px; border-radius: 4px; background: #fff7bf; font-size: 14px; font-weight: 700; }
+.board-mode__pending[hidden], .board-mode__refresh[hidden] { display: none; }
+.board-mode .board-mode__refresh { margin: 0; }

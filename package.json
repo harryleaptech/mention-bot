@@ -6,7 +6,7 @@
   "description": "DMs me my Discord and GitHub mentions with a Claude-drafted reply, and sends it only after I approve.",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/index.js && node --check src/claude.js && node --check src/github.js && node --check src/discord.js && node --check src/state.js && node --check src/design-check.js && node --check src/board.js && node --check src/board-server.js && node --check src/mentions.js",
+    "check": "node --check src/index.js && node --check src/claude.js && node --check src/github.js && node --check src/discord.js && node --check src/state.js && node --check src/design-check.js && node --check src/board.js && node --check src/board-server.js && node --check src/mentions.js && node --check src/events.js",
     "design-check": "node src/design-check.js"
   },
   "engines": {

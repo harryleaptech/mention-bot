@@ -16,6 +16,26 @@
     </div>
   </div>
 
+  {#- Live or Manual updates. Needs JavaScript, so it stays hidden until board.js shows it. -#}
+  <div class="board-mode" id="board-mode" hidden>
+    <fieldset class="govuk-fieldset board-mode__fieldset">
+      <legend class="govuk-fieldset__legend board-mode__legend">Updates</legend>
+      <div class="govuk-radios govuk-radios--small govuk-radios--inline" data-module="govuk-radios">
+        <div class="govuk-radios__item">
+          <input class="govuk-radios__input" id="mode-live" name="mode" type="radio" value="live">
+          <label class="govuk-label govuk-radios__label" for="mode-live">Live</label>
+        </div>
+        <div class="govuk-radios__item">
+          <input class="govuk-radios__input" id="mode-manual" name="mode" type="radio" value="manual">
+          <label class="govuk-label govuk-radios__label" for="mode-manual">Manual</label>
+        </div>
+      </div>
+    </fieldset>
+    <span class="board-mode__status" id="board-live-status" role="status"></span>
+    <span class="board-mode__pending" id="board-pending" hidden>New updates</span>
+    <button type="button" class="govuk-button govuk-button--secondary board-btn board-mode__refresh" id="board-refresh" hidden>Refresh</button>
+  </div>
+
   <div id="columns" data-busy="{{ 1 if busy else 0 }}">
     {% include "columns.njk" %}
   </div>

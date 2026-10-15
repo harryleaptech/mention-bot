@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runTask } from './claude.js';
+import { changed } from './events.js';
 
 // The task board's store and run queue. A task started from the board runs with the local
 // Claude Code in its folder; when it finishes it moves to Done (or stays in Doing, failed)
@@ -31,7 +32,10 @@ function load() {
 }
 
 const board = load();
-const save = () => writeFileSync(FILE, JSON.stringify(board, null, 2));
+const save = () => {
+  writeFileSync(FILE, JSON.stringify(board, null, 2));
+  changed();
+};
 
 // A run the bot was doing when it stopped can't be picked up again.
 for (const card of board.cards) {

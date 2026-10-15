@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { changed } from './events.js';
 
 // Mentions waiting for my decision, shared by the Discord DMs and the task board. Each one
 // keeps where its reply goes (`target`), not a function, so it can still be sent after a
@@ -27,6 +28,7 @@ const save = () => {
   const decided = store.items.filter((m) => m.status !== 'waiting').slice(-KEEP);
   store.items = [...decided, ...waiting].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   writeFileSync(FILE, JSON.stringify(store, null, 2));
+  changed();
 };
 
 const senders = {};

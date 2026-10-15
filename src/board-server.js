@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { changes } from './events.js';
 import nunjucks from 'nunjucks';
 import {
   addCard, cards, deleteCard, findCard, folders, moveCard, resumeQueue, startCard, validate,
@@ -145,7 +146,23 @@ export function startBoard() {
     res.render('board.njk', { columns: columns(), notice: NOTICES[req.query.notice], busy: anyBusy() });
   });
 
-  // The columns alone, for the page's refresh while a task runs.
+  // Live updates: the page keeps this open and refreshes its columns when told something
+  // changed (Server-Sent Events: one-way, built into browsers, reconnects by itself).
+  app.get('/events', (req, res) => {
+    res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    res.flushHeaders();
+    res.write('retry: 3000\n\n');
+    let timer = null;
+    const onChange = () => { // several saves in a row become one message
+      clearTimeout(timer);
+      timer = setTimeout(() => res.write('event: change\ndata: {}\n\n'), 150);
+    };
+    const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
+    changes.on('change', onChange);
+    req.on('close', () => { changes.off('change', onChange); clearInterval(ping); clearTimeout(timer); });
+  });
+
+  // The columns alone, for the page's live refresh.
   app.get('/columns', (req, res) => {
     res.set('X-Busy', anyBusy() ? '1' : '0').render('columns.njk', { columns: columns() });
   });

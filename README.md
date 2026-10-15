@@ -85,7 +85,9 @@ The pages use [GOV.UK Frontend](https://frontend.design-system.service.gov.uk/)
 components with Nunjucks, served by Express (`src/board-server.js`, `views/`,
 `public/`). Not a government service, so no crown, no GOV.UK name and no GDS
 Transport font (`public/board.css` swaps in the system font). Every page works
-without JavaScript; the script only refreshes the columns while a task runs.
+without JavaScript. With it, the board updates live: the bot pushes a signal
+(Server-Sent Events, `/events`) the moment a mention arrives or a task changes,
+and only that column is redrawn.
 
 - **Add a task** with what Claude should do, optional details and a folder, then
   **Add and start** or **Add to To do**.
