@@ -106,6 +106,10 @@ and only that column is redrawn.
   written into the page (and must come from the same origin), so another website
   can't start a task. The key changes when the bot restarts: a form sent from an
   older page shows "The page has expired"; go back to the board.
+- **Themes:** GOV.UK (default), Modern, Modern dark, or Auto (follows your Mac's
+  light/dark setting), from the Theme menu above the columns. Kept per browser.
+  The design is in `public/themes.css`: one set of rules reading colour tokens, so a
+  new theme is a new set of tokens.
 - Cards are kept in `board.json`. A run cut off by a restart is marked failed.
 - Each run uses your Claude subscription. A run stops after `BOARD_TIMEOUT_MINUTES`.
 

@@ -99,6 +99,16 @@ if (columns) {
   refreshButton.addEventListener('click', async () => { showPending(false); await refresh(); });
   setMode(mode);
 
+  // Theme: the page head already applied the saved one; this only switches it.
+  const themeSelect = document.getElementById('board-theme');
+  themeSelect.value = document.documentElement.getAttribute('data-theme') || 'govuk';
+  themeSelect.addEventListener('change', () => {
+    const theme = themeSelect.value;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('t-modern', theme !== 'govuk');
+    try { localStorage.setItem('board-theme', theme); } catch { /* storage blocked */ }
+  });
+
   const live = new EventSource('/events'); // reconnects by itself after a bot restart
   const changedNow = () => (mode === 'live' ? refresh() : showPending(true));
   live.addEventListener('change', changedNow);

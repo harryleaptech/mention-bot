@@ -26,8 +26,17 @@
 {% endblock %}
 
 {% block head %}
+  {#- Apply the saved theme before the page draws, so it never flashes the default. -#}
+  <script>
+    try {
+      var theme = localStorage.getItem('board-theme') || 'govuk';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme !== 'govuk') document.documentElement.classList.add('t-modern');
+    } catch (e) { /* storage blocked: the default theme */ }
+  </script>
   <link rel="stylesheet" href="/govuk/govuk-frontend.min.css">
   <link rel="stylesheet" href="/static/board.css">
+  <link rel="stylesheet" href="/static/themes.css">
 {% endblock %}
 
 {% block govukHeader %}{% endblock %}

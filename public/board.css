@@ -153,3 +153,6 @@
 .board-mode__pending { padding: 2px 8px; border-radius: 4px; background: #fff7bf; font-size: 14px; font-weight: 700; }
 .board-mode__pending[hidden], .board-mode__refresh[hidden] { display: none; }
 .board-mode .board-mode__refresh { margin: 0; }
+.board-mode__theme { display: flex; align-items: center; gap: 8px; }
+.board-mode__theme .board-mode__legend { float: none; margin: 0; }
+.board-mode__select { min-width: 0; width: auto; height: 34px; padding: 2px 8px; font-size: 15px; }

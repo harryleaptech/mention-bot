@@ -31,6 +31,15 @@
         </div>
       </div>
     </fieldset>
+    <div class="board-mode__theme">
+      <label class="govuk-label board-mode__legend" for="board-theme">Theme</label>
+      <select class="govuk-select board-mode__select" id="board-theme">
+        <option value="govuk">GOV.UK</option>
+        <option value="modern">Modern</option>
+        <option value="dark">Modern dark</option>
+        <option value="auto">Auto (follows your Mac)</option>
+      </select>
+    </div>
     <span class="board-mode__status" id="board-live-status" role="status"></span>
     <span class="board-mode__pending" id="board-pending" hidden>New updates</span>
     <button type="button" class="govuk-button govuk-button--secondary board-btn board-mode__refresh" id="board-refresh" hidden>Refresh</button>
