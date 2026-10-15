@@ -166,3 +166,4 @@
 [discord] logged in as HarryBuddy#2234, in 1 server(s)
 [github] watching mentions of @harryleaptech
 [discord] catch-up: 0 mention(s) from the last 24h
+[github] GitHub GET /notifications?participating=true&all=true&per_page=50&since=2026-10-14T08:25:00.076Z -> 503 {"message":"Server Error","documentation_url":"https://docs.github.com/rest/activity/notifications#list-notifications-for-the-authenticated-user","status":"503"}

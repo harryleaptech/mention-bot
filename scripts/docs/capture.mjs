@@ -115,12 +115,14 @@ function startDemo() {
       BOARD_FILE: join(temp, 'board.json'),
       MENTIONS_FILE: join(temp, 'mentions.json'),
     },
-    stdio: ['ignore', 'pipe', 'inherit'],
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  return new Promise((resolve) => {
+  server.stderr.on('data', (d) => process.stderr.write(`[demo] ${d}`));
+  return new Promise((resolve, reject) => {
     server.stdout.on('data', (d) => {
       if (String(d).includes('[board]')) resolve({ server, temp });
     });
+    server.on('exit', (code) => reject(new Error(`demo board stopped (${code})`)));
   });
 }
 
@@ -128,11 +130,8 @@ function startDemo() {
 
 const browser = await chromium.launch({ channel: 'chrome' });
 
-async function page({ theme = 'govuk', width = 1440, height = 900, record = false } = {}) {
-  const context = await browser.newContext({
-    viewport: { width, height },
-    ...(record ? { recordVideo: { dir: join(OUT, '.video'), size: { width, height } } } : {}),
-  });
+async function page({ theme = 'govuk', width = 1440, height = 900 } = {}) {
+  const context = await browser.newContext({ viewport: { width, height } });
   await context.addInitScript((t) => localStorage.setItem('board-theme', t), theme);
   const p = await context.newPage();
   return { p, context };
@@ -153,50 +152,80 @@ async function screenshot(name, path, options = {}) {
   console.log(`  ${name}.png`);
 }
 
-/** Records `steps`, then turns the video into a small GIF with ffmpeg. */
+/**
+ * Records `steps` as a GIF with Chrome's screencast (frames with timestamps, through page
+ * loads), joined by ffmpeg at the real pace. No Playwright video download needed.
+ */
 async function recording(name, steps, options = {}) {
-  const { p, context } = await page({ ...options, width: 1280, height: 800, record: true });
+  const { p, context } = await page({ ...options, width: 1280, height: 800 });
+  const frames = join(OUT, '.frames');
+  rmSync(frames, { recursive: true, force: true });
+  mkdirSync(frames, { recursive: true });
+
+  const shots = [];
+  const cdp = await context.newCDPSession(p);
+  cdp.on('Page.screencastFrame', ({ data, metadata, sessionId }) => {
+    const file = join(frames, `${String(shots.length + 1).padStart(5, '0')}.jpg`);
+    writeFileSync(file, Buffer.from(data, 'base64'));
+    shots.push({ file, at: metadata.timestamp, size: `${metadata.deviceWidth}x${metadata.deviceHeight}` });
+    cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+  });
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 90, maxWidth: 1280, maxHeight: 800 });
+
   await steps(p);
   await p.waitForTimeout(1200);
-  const video = await p.video().path();
+  await cdp.send('Page.stopScreencast');
   await context.close();
-  const palette = join(OUT, '.video', 'palette.png');
-  const filters = 'fps=10,scale=960:-1:flags=lanczos';
-  execFileSync('ffmpeg', [
-    '-y',
-    '-loglevel',
-    'error',
-    '-ss',
-    '0.6',
-    '-i',
-    video,
-    '-vf',
-    `${filters},palettegen=stats_mode=diff`,
-    palette,
-  ]);
-  execFileSync('ffmpeg', [
-    '-y',
-    '-loglevel',
-    'error',
-    '-ss',
-    '0.6',
-    '-i',
-    video,
+
+  // Frames from before the window settled have another size, which ffmpeg can't mix: keep
+  // only the frames at the final size.
+  const finalSize = shots.at(-1).size;
+  const kept = shots.filter((s) => s.size === finalSize);
+  shots.length = 0;
+  shots.push(...kept);
+
+  // Each frame stays on screen until the next one (the screencast only sends changes).
+  const end = Date.now() / 1000;
+  const list = shots
+    .map((s, i) => `file '${s.file}'\nduration ${((shots[i + 1]?.at ?? end) - s.at).toFixed(3)}`)
+    .join('\n');
+  const listFile = join(frames, 'frames.txt');
+  writeFileSync(listFile, `${list}\nfile '${shots.at(-1).file}'\n`);
+
+  const input = ['-f', 'concat', '-safe', '0', '-i', listFile];
+  const palette = join(frames, 'palette.png');
+  const scale = 'fps=10,scale=960:-1:flags=lanczos';
+  ffmpeg([...input, '-vf', `${scale},palettegen=stats_mode=diff`, palette]);
+  ffmpeg([
+    ...input,
     '-i',
     palette,
     '-lavfi',
-    `${filters} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=4`,
+    `${scale} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=4`,
     join(OUT, `${name}.gif`),
   ]);
-  console.log(`  ${name}.gif`);
+  rmSync(frames, { recursive: true, force: true });
+  console.log(`  ${name}.gif (${shots.length} frames)`);
 }
+
+const ffmpeg = (args) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...args]);
 
 const pause = (p, ms = 900) => p.waitForTimeout(ms);
 const slowType = (p, selector, text) => p.locator(selector).pressSequentially(text, { delay: 35 });
 
 let demo = await startDemo();
+// Whatever happens, don't leave the demo board running.
+process.on('exit', () => demo.server.kill());
+process.on('uncaughtException', (e) => {
+  console.error(e);
+  process.exit(1);
+});
 const restartDemo = async () => {
-  demo.server.kill();
+  // Wait for the old one to exit so the new one can take the port.
+  await new Promise((resolve) => {
+    demo.server.once('exit', resolve);
+    demo.server.kill();
+  });
   rmSync(demo.temp, { recursive: true, force: true });
   demo = await startDemo();
 };
@@ -278,5 +307,4 @@ await recording(
 await browser.close();
 demo.server.kill();
 rmSync(demo.temp, { recursive: true, force: true });
-rmSync(join(OUT, '.video'), { recursive: true, force: true });
 console.log(`Done: ${readdirSync(OUT).length} files in docs/media/`);
